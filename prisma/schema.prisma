@@ -23,6 +23,8 @@ model Lead {
   answers     Json     @default("{}")
   /** Tags accumulated from every answered option; matched against FlowConfig outcomes. */
   tags        String[] @default([])
+  /** [{ nodeId, at }] — append-only log of graph nodes visited, for funnel analytics. */
+  visited     Json     @default("[]")
   outcomeId   String?
   qualified   Boolean?
   currentStep String   @default("intro")
@@ -36,6 +38,9 @@ model Lead {
 
 model FlowConfig {
   id        String   @id @default("default")
+  /** Published/live graph — read by the public /aplicacao form. */
   steps     Json
+  /** Editor's working copy. "Publicar" copies this into `steps`. */
+  draft     Json?
   updatedAt DateTime @updatedAt
 }

@@ -1,18 +1,12 @@
 "use client";
 
 import { useState } from "react";
-import type { FlowSteps } from "@/lib/flow";
+import { findNode, type FlowGraph, type FlowNode } from "@/lib/flow";
 
-type Step = "intro" | "contact" | number | "outcome";
-
-export default function Wizard({
-  flow,
-  origin,
-}: {
-  flow: FlowSteps;
-  origin?: string;
-}) {
-  const [step, setStep] = useState<Step>("intro");
+export default function Wizard({ graph, origin }: { graph: FlowGraph; origin?: string }) {
+  const entryNode = findNode(graph, graph.entryNodeId) as FlowNode;
+  const [currentNode, setCurrentNode] = useState<FlowNode>(entryNode);
+  const [questionNumber, setQuestionNumber] = useState(0);
   const [leadId, setLeadId] = useState<string | null>(null);
   const [name, setName] = useState("");
   const [phone, setPhone] = useState("");
@@ -20,8 +14,10 @@ export default function Wizard({
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const totalQuestions = flow.questions.length;
-  const questionIndex = typeof step === "number" ? step : null;
+  function goTo(node: FlowNode) {
+    if (node.type === "choice") setQuestionNumber((n) => n + 1);
+    setCurrentNode(node);
+  }
 
   async function saveProgress(payload: Record<string, unknown>) {
     setSubmitting(true);
@@ -39,11 +35,7 @@ export default function Wizard({
       if (!res.ok) throw new Error("request failed");
       const json = await res.json();
       if (json.id) setLeadId(json.id);
-      return json as {
-        id: string;
-        completed: boolean;
-        outcome?: { title: string; body: string };
-      };
+      return json as { id: string; nextNode: FlowNode; outcome?: { title: string; body: string } };
     } catch {
       setError("Não foi possível salvar sua resposta. Tente novamente.");
       return null;
@@ -52,60 +44,43 @@ export default function Wizard({
     }
   }
 
+  async function handleIntroContinue() {
+    const result = await saveProgress({ currentNodeId: currentNode.id });
+    if (!result) return;
+    if (result.outcome) setOutcome(result.outcome);
+    goTo(result.nextNode);
+  }
+
   async function handleContactSubmit(e: React.FormEvent) {
     e.preventDefault();
     if (!name.trim() || !phone.trim()) return;
-    if (totalQuestions === 0) {
-      const result = await saveProgress({
-        name,
-        phone,
-        currentStep: "outcome",
-      });
-      if (!result) return;
-      if (result.outcome) setOutcome(result.outcome);
-      setStep("outcome");
-      return;
-    }
-    const result = await saveProgress({ name, phone, currentStep: "q:0" });
-    if (result) setStep(0);
-  }
-
-  async function handleAnswer(qIndex: number, optionId: string) {
-    const isLast = qIndex === totalQuestions - 1;
-    const result = await saveProgress({
-      answer: { questionId: flow.questions[qIndex].id, optionId },
-      currentStep: isLast ? "outcome" : `q:${qIndex + 1}`,
-    });
+    const result = await saveProgress({ currentNodeId: currentNode.id, name, phone });
     if (!result) return;
-    if (isLast) {
-      if (result.outcome) setOutcome(result.outcome);
-      setStep("outcome");
-    } else {
-      setStep(qIndex + 1);
-    }
+    if (result.outcome) setOutcome(result.outcome);
+    goTo(result.nextNode);
   }
 
-  const skylineVariant = step === "intro" || step === "outcome" ? "full" : "sliver";
+  async function handleAnswer(optionId: string) {
+    const result = await saveProgress({ currentNodeId: currentNode.id, optionId });
+    if (!result) return;
+    if (result.outcome) setOutcome(result.outcome);
+    goTo(result.nextNode);
+  }
+
+  const skylineVariant = currentNode.type === "intro" || currentNode.type === "outcome" ? "full" : "sliver";
 
   return (
     <div className="relative w-full">
       <Skyline variant={skylineVariant} />
 
       <div className="relative z-10 mx-auto w-full max-w-md">
-        {questionIndex !== null && totalQuestions > 0 && (
-          <div className="mb-8 flex gap-1.5">
-            {flow.questions.map((q, i) => (
-              <div
-                key={q.id}
-                className={`h-1 flex-1 rounded-full transition-colors ${
-                  i <= questionIndex ? "bg-accent" : "bg-white/10"
-                }`}
-              />
-            ))}
-          </div>
+        {currentNode.type === "choice" && (
+          <p className="mb-6 text-center text-xs font-medium uppercase tracking-[0.2em] text-white/40">
+            Pergunta {questionNumber}
+          </p>
         )}
 
-        {step === "intro" && (
+        {currentNode.type === "intro" && (
           <>
             <div className="mb-5 flex items-center justify-center gap-2">
               <span className="text-[11px] font-semibold uppercase tracking-[0.2em] text-white/40">
@@ -117,25 +92,26 @@ export default function Wizard({
               </span>
             </div>
             <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-8 text-center">
-              <h1 className="text-2xl font-semibold text-white">{flow.intro.title}</h1>
-              <p className="mt-3 text-sm text-white/60">{flow.intro.body}</p>
+              <h1 className="text-2xl font-semibold text-white">{currentNode.data.title}</h1>
+              <p className="mt-3 text-sm text-white/60">{currentNode.data.body}</p>
               <button
-                onClick={() => setStep("contact")}
-                className="mt-8 w-full rounded-xl bg-accent py-3 font-medium text-black transition hover:opacity-90"
+                onClick={handleIntroContinue}
+                disabled={submitting}
+                className="mt-8 w-full rounded-xl bg-accent py-3 font-medium text-black transition hover:opacity-90 disabled:opacity-40"
               >
-                Começar
+                {submitting ? "Enviando..." : "Começar"}
               </button>
             </div>
           </>
         )}
 
-        {step === "contact" && (
+        {currentNode.type === "contact" && (
           <form
             onSubmit={handleContactSubmit}
             className="rounded-2xl border border-white/10 bg-white/[0.03] p-8"
           >
-            <h2 className="text-xl font-semibold text-white">{flow.contact.question}</h2>
-            <p className="mt-1 text-sm text-white/50">{flow.contact.help}</p>
+            <h2 className="text-xl font-semibold text-white">{currentNode.data.question}</h2>
+            <p className="mt-1 text-sm text-white/50">{currentNode.data.help}</p>
             <div className="mt-6 space-y-3">
               <input
                 autoFocus
@@ -162,16 +138,16 @@ export default function Wizard({
           </form>
         )}
 
-        {questionIndex !== null && (
+        {currentNode.type === "choice" && (
           <ChoiceStep
-            question={flow.questions[questionIndex].question}
-            options={flow.questions[questionIndex].options}
-            onSelect={(optionId) => handleAnswer(questionIndex, optionId)}
+            question={currentNode.data.question}
+            options={currentNode.data.options}
+            onSelect={handleAnswer}
             submitting={submitting}
           />
         )}
 
-        {step === "outcome" && outcome && (
+        {currentNode.type === "outcome" && outcome && (
           <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-8 text-center">
             <svg viewBox="0 0 48 48" width="44" height="44" className="mx-auto mb-4 block">
               <circle cx="24" cy="24" r="21" fill="none" stroke="rgba(255,255,255,0.25)" strokeWidth="1.5" />

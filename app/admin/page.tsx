@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { prisma } from "@/lib/db";
-import { getFlowConfig } from "@/lib/flow";
+import { getPublishedGraph } from "@/lib/flow-db";
 import StatCard from "@/components/StatCard";
 import FilterBar from "@/components/FilterBar";
 import LeadCard, { type LeadCardData } from "@/components/LeadCard";
@@ -27,8 +27,8 @@ export default async function AdminPage({
   }>;
 }) {
   const { q, categoria, contato, periodo } = await searchParams;
-  const flow = await getFlowConfig();
-  const questionById = new Map(flow.questions.map((qs) => [qs.id, qs]));
+  const graph = await getPublishedGraph();
+  const choiceNodes = graph.nodes.filter((n) => n.type === "choice");
 
   const where: Prisma.LeadWhereInput = { completed: true };
 
@@ -66,9 +66,9 @@ export default async function AdminPage({
 
   const cards: LeadCardData[] = leads.map((lead, i) => {
     const answers = (lead.answers as Record<string, { optionId: string; label: string }>) ?? {};
-    const answerLabels = flow.questions
-      .filter((qs) => answers[qs.id])
-      .map((qs) => `${questionById.get(qs.id)?.question ?? qs.question}: ${answers[qs.id].label}`);
+    const answerLabels = choiceNodes
+      .filter((n) => answers[n.id])
+      .map((n) => `${n.data.question}: ${answers[n.id].label}`);
 
     return {
       id: lead.id,

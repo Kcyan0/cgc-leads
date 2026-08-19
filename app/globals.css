@@ -19,3 +19,20 @@ body {
   color: var(--foreground);
   font-family: Arial, Helvetica, sans-serif;
 }
+
+/* Monochrome overrides for the @xyflow/react flow editor — no hue anywhere. */
+.cgc-flow {
+  --xy-background-color: #000000;
+  --xy-background-pattern-color: rgba(255, 255, 255, 0.15);
+  --xy-edge-stroke: rgba(255, 255, 255, 0.3);
+  --xy-edge-stroke-selected: #ffffff;
+  --xy-node-boxshadow-hover: 0 0 0 1px rgba(255, 255, 255, 0.4);
+  --xy-node-boxshadow-selected: 0 0 0 1px #ffffff;
+  --xy-controls-button-background-color: #000000;
+  --xy-controls-button-background-color-hover: #1a1a1a;
+  --xy-controls-button-color: #ffffff;
+  --xy-controls-button-color-hover: #ffffff;
+  --xy-controls-button-border-color: rgba(255, 255, 255, 0.15);
+  --xy-minimap-background-color: #000000;
+  --xy-minimap-mask-background-color: rgba(0, 0, 0, 0.85);
+}
