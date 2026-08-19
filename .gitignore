@@ -36,6 +36,9 @@ yarn-error.log*
 # vercel
 .vercel
 
+# generated admin credentials (see setup output)
+.admin-credentials.txt
+
 # typescript
 *.tsbuildinfo
 next-env.d.ts
